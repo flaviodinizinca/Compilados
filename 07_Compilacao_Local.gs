@@ -184,6 +184,11 @@ function compilarDados(dadosGlobais) {
               statusFinal = isProvisorio ? "Recebimento Provisório" : "Concluído";
           }
           linha[18] = statusFinal;
+          
+          // ---> MODIFICAÇÃO AQUI: Força a observação se o status for "Saldo Cancelado" <---
+          if (statusFinal === 'Saldo Cancelado') {
+              linha[17] = 'Saldo Cancelado';
+          }
       }
 
       // --- NOVO: Preencher a coluna V (índice 21) com a última data do item ---

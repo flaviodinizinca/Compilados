@@ -128,7 +128,9 @@ function _calcularStatusUnificado(qEmpenhada, qSaidaOficial, saldoFisico, isRecP
   if (qEmpenhada > 0 && qSaidaOficial > qEmpenhada) return 'Recebido a Maior';
   if (qEmpenhada > 0 && qSaidaOficial === qEmpenhada) return 'Concluído'; 
   if (qEmpenhada === 0 && qSaidaOficial > 0) return 'Recebido. Falta associar';
-  if (qEmpenhada === 0) return 'Solicitar Associação';
+  
+  // ---> MODIFICAÇÃO AQUI: Implementação da regra do Saldo Cancelado <---
+  if (qEmpenhada === 0) return 'Saldo Cancelado';
 
   if (isRecProvisorio && qSaidaOficial === 0) {
       if (saldoFisico > 0 && saldoFisico <= (qEmpenhada * 0.10)) return 'Resíduo 10%';

@@ -116,7 +116,11 @@ function processarMedicamentosRemoto(dadosGlobais) {
       }
 
       let atraso = "";
-      if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
+      
+      // ---> MODIFICAÇÃO AQUI: Implementação da observação na Coluna R <---
+      if (status === 'Saldo Cancelado') {
+        atraso = 'Saldo Cancelado';
+      } else if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
         atraso = 'Entregue';
       } else if (status.includes('Pendente') && dVen) {
         const diff = new Date().setHours(0, 0, 0, 0) - dVen.getTime();

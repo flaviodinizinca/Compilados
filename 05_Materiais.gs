@@ -1,6 +1,7 @@
 // =================================================================
 // --- BLOCO 5: PROCESSAMENTO REMOTO - MATERIAIS (LÓGICA HÍBRIDA) ---
 // =================================================================
+
 function processarMateriaisRemoto(dadosGlobais) {
   try {
     if (!dadosGlobais) {
@@ -155,7 +156,10 @@ function processarMateriaisRemoto(dadosGlobais) {
         let obsAtraso = "";
         const dVenc = (r[0] instanceof Date ? _addDays(r[0], 10) : null);
 
-        if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
+        // ---> MODIFICAÇÃO AQUI: Implementação da observação na Coluna R <---
+        if (status === 'Saldo Cancelado') {
+           obsAtraso = 'Saldo Cancelado';
+        } else if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
           obsAtraso = 'Entregue';
         } else if (status.includes('Pendente') && dVenc) {
           const diff = new Date().setHours(0, 0, 0, 0) - dVenc.getTime();

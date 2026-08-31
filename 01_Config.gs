@@ -67,7 +67,8 @@ var CONFIG = {
     'ELIMINADA': '#999999',                   
     'RECEBIMENTO PROVISÓRIO': '#fce5cd',
     'REC. PROV. / COM RESIDUO': '#f9cb9c',
-    'RECEBIDO A MAIOR': '#f6b26b', 
+    'RECEBIDO A MAIOR': '#f6b26b',
+    'SALDO CANCELADO': '#ead1dc',
     'ALERTA_CRITICO': '#ea9999',
     'ALERTA_ATENCAO': '#ffe599',
     'ALERTA_OK': '#b6d7a8'
