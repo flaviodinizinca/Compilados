@@ -1,7 +1,6 @@
 // =================================================================
 // --- BLOCO 14: STATUS REPORT (ATUALIZADO COM FLUXO E PRIORIDADES E CMM) ---
 // =================================================================
-
 // CONFIGURAÇÃO GERAL
 const NOME_ABA_TRABALHO = "Status Report";
 const CONFIG_EMAILS_MUTIRAO = {
@@ -17,12 +16,10 @@ function fluxoImportacaoUrgencias() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const abaStatus = ss.getSheetByName(NOME_ABA_TRABALHO);
-
   if (!abaStatus) {
     ui.alert("Erro", `Aba '${NOME_ABA_TRABALHO}' não encontrada.`, ui.ButtonSet.OK);
     return;
   }
-
   try {
     const idUrgencias = '1b8pSeKilEIkzyDgLjHwJpslXczIQ7Ki_4qDpnXbiEkM';
     const ssUrg = SpreadsheetApp.openById(idUrgencias);
@@ -45,7 +42,6 @@ function fluxoImportacaoUrgencias() {
           
           let valPrio = linha[7];
           let valPrazo = linha[8];
-
           valPrio = (valPrio === 0 || valPrio === "0") ? "0" : (valPrio ? String(valPrio).trim() : "");
           valPrazo = (valPrazo === 0 || valPrazo === "0") ? "0" : (valPrazo ? String(valPrazo).trim() : "");
           
@@ -53,7 +49,6 @@ function fluxoImportacaoUrgencias() {
           colPrazo.push([valPrazo]);
         }
     });
-
     if (colA.length === 0) {
       throw new Error("Nenhum código válido encontrado na coluna A da aba de Urgências.");
     }
@@ -61,21 +56,18 @@ function fluxoImportacaoUrgencias() {
     if (abaStatus.getMaxColumns() < 14) {
       abaStatus.insertColumnsAfter(abaStatus.getMaxColumns(), 14 - abaStatus.getMaxColumns());
     }
-
     const maxRows = abaStatus.getMaxRows();
     if(maxRows > 1) {
         abaStatus.getRange(2, 1, maxRows - 1, 14).clearContent();
     }
     
     abaStatus.getRange(2, 13, colPrio.length, 2).setNumberFormat("@");
-
     abaStatus.getRange(2, 1, colA.length, 1).setValues(colA);
     abaStatus.getRange(2, 13, colPrio.length, 1).setValues(colPrio);
     abaStatus.getRange(2, 14, colPrazo.length, 1).setValues(colPrazo);
     
     SpreadsheetApp.flush();
     processarMutirao();
-
   } catch(e) {
     ui.alert("Erro na Importação", e.message, ui.ButtonSet.OK);
   }
@@ -89,10 +81,10 @@ function processarMutirao() {
       .container { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
       label { display: block; margin-bottom: 12px; cursor: pointer; font-size: 15px; color: #444; }
       input[type="radio"] { transform: scale(1.3); margin-right: 10px; cursor: pointer; accent-color: #1c4587; }
-      .btn { 
-         background-color: #1c4587; color: white; border: none; 
-         padding: 12px 0; width: 100%; border-radius: 5px; 
-         font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;
+      .btn {
+          background-color: #1c4587; color: white; border: none;
+          padding: 12px 0; width: 100%; border-radius: 5px;
+          font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;
         transition: background 0.3s;
       }
       .btn:hover { background-color: #0f2e5e; }
@@ -123,17 +115,15 @@ function processarMutirao() {
       }
     </script>
   `).setWidth(320).setHeight(300);
-
   SpreadsheetApp.getUi().showModalDialog(html, 'Orquestrador de Estoque');
 }
 
 function executarMutiraoComContexto(tipoOrigem) {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
   try {
     const abaMutirao = ss.getSheetByName(NOME_ABA_TRABALHO);
-      
+       
     const idFonte = CONFIG.ids.fonteDadosGeral;
     if (!idFonte) throw new Error("ID_FONTE_GERAL não configurado nas propriedades.");
     const ssFonte = SpreadsheetApp.openById(idFonte);
@@ -152,7 +142,6 @@ function executarMutiraoComContexto(tipoOrigem) {
 
     const mapObservacoesSalvas = new Map();
     const mapQtdSolicitada = new Map();
-
     const dadosAtuais = abaMutirao.getRange(2, 1, lastRowMult - 1, 14).getValues();
     const setCodigos = new Set();
     
@@ -160,7 +149,7 @@ function executarMutiraoComContexto(tipoOrigem) {
       const cod = _norm(linha[0]);
       const qtd = linha[4]; 
       const obs = String(linha[11]).trim(); 
-      
+        
       if (cod) {
         setCodigos.add(cod);
         if (obs) mapObservacoesSalvas.set(cod, obs);
@@ -177,10 +166,9 @@ function executarMutiraoComContexto(tipoOrigem) {
     const mapaDados = new Map();
     
     const linhaInicialDados = 3; 
-
     if (lastRowDados >= linhaInicialDados) {
-      // AJUSTE: Leitura da nova estrutura com 40 colunas
-      const vDados = abaDados.getRange(linhaInicialDados, 1, lastRowDados - (linhaInicialDados-1), 40).getValues();
+      // AJUSTE: Leitura da nova estrutura com 43 colunas (+3 colunas novas adicionadas)
+      const vDados = abaDados.getRange(linhaInicialDados, 1, lastRowDados - (linhaInicialDados-1), 43).getValues();
       
       for (let i = 0; i < vDados.length; i++) {
         const linha = vDados[i];
@@ -188,13 +176,12 @@ function executarMutiraoComContexto(tipoOrigem) {
         
         if (cod && setCodigos.has(cod)) {
            if (!mapaDados.has(cod)) {
-             // Agora armazenamos conjuntos separados para AE, Notes (Solicitação), Processo Ata e Processo em Andamento
              mapaDados.set(cod, {
                 estoqueTotal: 0,
-                aeSet: new Set(),              // valores da coluna AE (coluna AE do DadosEstoque)
-                notesSet: new Set(),           // Notes da Ata — vindo da coluna S mas filtrado pelo primeiro dígito >= 6
-                procAtaSet: new Set(),         // Processo Ata (coluna T)
-                procAnaliseSet: new Set(),     // Processo em Andamento (coluna AB)
+                aeSet: new Set(),
+                notesSet: new Set(),
+                procAtaSet: new Set(),
+                procAnaliseSet: new Set(),
                 descricaoSet: new Set(),
                 cmm: 0
              });
@@ -202,7 +189,6 @@ function executarMutiraoComContexto(tipoOrigem) {
            const d = mapaDados.get(cod);
            
            const estoqueLinha = parseFloat(linha[7]) || 0; // Col H (SaldoAtual)
-           // armazenamos o maior estoque encontrado (proteção contra duplicidades locais)
            d.estoqueTotal = Math.max(d.estoqueTotal, estoqueLinha);
 
            const cmmLinha = parseFloat(linha[8]) || 0; // Col I (Cmm12)
@@ -211,14 +197,12 @@ function executarMutiraoComContexto(tipoOrigem) {
            if (linha[2]) d.descricaoSet.add(String(linha[2]).trim()); // Col C (Descricao)
            
            // === EXTRAÇÃO DAS COLUNAS RELEVANTES (USANDO OS ÍNDICES DA MATRIZ) ===
-           // Observação: indices baseados na leitura de 40 colunas (0-based)
-           const valorSolicitacao = linha[19] !== undefined ? String(linha[19]).trim() : ""; // Comentário original: Col S
-           const valorProcAta = linha[21] !== undefined ? String(linha[21]).trim() : "";      // Col T
-           const valorProcAnalise = linha[27] !== undefined ? String(linha[27]).trim() : "";  // Col AB
-           const valorColunaAE = linha[30] !== undefined ? String(linha[30]).trim() : "";     // Col AE (solicitado explicitamente)
+           // Ajustados para acomodar o pulo de 3 colunas extras adicionadas a planilha
+           const valorSolicitacao = linha[22] !== undefined ? String(linha[22]).trim() : ""; // Deslocado de 19 para 22
+           const valorProcAta = linha[24] !== undefined ? String(linha[24]).trim() : "";      // Deslocado de 21 para 24
+           const valorProcAnalise = linha[30] !== undefined ? String(linha[30]).trim() : "";  // Deslocado de 27 para 30
+           const valorColunaAE = linha[33] !== undefined ? String(linha[33]).trim() : "";     // Deslocado de 30 para 33
 
-           // --- Regras para "Notes da Ata" (coluna S) ---
-           // Só acrescenta a "Notes da Ata" se o valor começar com um dígito e o primeiro dígito for >= 6
            if (valorSolicitacao) {
              const primeiroChar = String(valorSolicitacao).charAt(0);
              if (/\d/.test(primeiroChar)) {
@@ -229,12 +213,10 @@ function executarMutiraoComContexto(tipoOrigem) {
              }
            }
 
-           // --- Coluna AE (coluna AE da planilha DadosEstoque) sempre adicionada ao campo AE ---
            if (valorColunaAE) {
              d.aeSet.add(valorColunaAE);
            }
 
-           // --- Processos: guardar separadamente Processo Ata (T) e Processo em Andamento (AB) ---
            if (valorProcAta) d.procAtaSet.add(valorProcAta);
            if (valorProcAnalise) d.procAnaliseSet.add(valorProcAnalise);
         }
@@ -260,14 +242,14 @@ function executarMutiraoComContexto(tipoOrigem) {
       }
       
       const prioridade = linhaInput[12] != null ? String(linhaInput[12]).trim() : ""; 
-      const prazo = linhaInput[13] != null ? String(linhaInput[13]).trim() : "";  
+      const prazo = linhaInput[13] != null ? String(linhaInput[13]).trim() : ""; 
 
-      const infoEstoque = mapaDados.get(codAtual) || { 
-        estoqueTotal: 0, aeSet: new Set(), notesSet: new Set(), procAtaSet: new Set(), procAnaliseSet: new Set(), descricaoSet: new Set(), cmm: 0 
+      const infoEstoque = mapaDados.get(codAtual) || {
+        estoqueTotal: 0, aeSet: new Set(), notesSet: new Set(), procAtaSet: new Set(), procAnaliseSet: new Set(), descricaoSet: new Set(), cmm: 0
       };
       
-      const infoEntradas = mapaEntradas.get(codAtual) || { 
-        valor: 0, planejadores: new Set(), descricao: "" 
+      const infoEntradas = mapaEntradas.get(codAtual) || {
+        valor: 0, planejadores: new Set(), descricao: ""
       };
       
       let descricaoFinal = Array.from(infoEstoque.descricaoSet)[0] || infoEntradas.descricao || "Descrição não encontrada";
@@ -280,13 +262,8 @@ function executarMutiraoComContexto(tipoOrigem) {
       
       const formulaTotal = `=IF(ISNUMBER(E${linhaPlanilha}); D${linhaPlanilha}*E${linhaPlanilha}; 0)`;
 
-      // Monta texto de AE / Notes conforme solicitado:
-      // Formato final em Coluna G: 
-      // Notes ata: xxxxxx
-      // AE: xxxxxx
       const txtNotesArray = Array.from(infoEstoque.notesSet);
       const txtAEArray = Array.from(infoEstoque.aeSet);
-
       const txtNotesFinal = txtNotesArray.length ? txtNotesArray.join("\n") : "";
       const txtAEFinal = txtAEArray.length ? txtAEArray.join("\n") : "";
 
@@ -294,20 +271,14 @@ function executarMutiraoComContexto(tipoOrigem) {
       if (txtNotesFinal) blocoAENotes += `Notes ata: ${txtNotesFinal}`;
       if (txtAEFinal) blocoAENotes += (blocoAENotes ? "\n" : "") + `AE: ${txtAEFinal}`;
 
-      // Monta texto de Processos conforme solicitado:
-      // Formato final em Coluna J:
-      // Processo Ata: xxxxxxxx
-      // Processo em Andamento: xxxxxx
       const procAtaTxt = Array.from(infoEstoque.procAtaSet).join("\n");
       const procAnaliseTxt = Array.from(infoEstoque.procAnaliseSet).join("\n");
-
       let blocoProcessos = "";
       if (procAtaTxt) blocoProcessos += `Processo Ata: ${procAtaTxt}`;
       if (procAnaliseTxt) blocoProcessos += (blocoProcessos ? "\n" : "") + `Processo em Andamento: ${procAnaliseTxt}`;
 
       const txtPlan = infoEntradas.planejadores.size > 0 ? Array.from(infoEntradas.planejadores).join(" / ") : "Não Encontrado";
-
-      const txtEmp = Array.from(mapaEmpenhos.get(codAtual) || new Set()).join("\n"); // empenhos
+      const txtEmp = Array.from(mapaEmpenhos.get(codAtual) || new Set()).join("\n");
       const estoqueTotal = infoEstoque.estoqueTotal;
 
       outputDescricoes.push([descricaoFinal]); 
@@ -316,20 +287,6 @@ function executarMutiraoComContexto(tipoOrigem) {
       outputQtdSolicitada.push([qtdSol]);
       outputFormulasTotal.push([formulaTotal]);
       
-      // Ordem dos campos em outputDados:
-      // [Descrição, Valor Unitário, CMM, Qtd Solicitada, Valor Total, AE/Notes (col G), Empenho (H), Estoque (I), Processos (J), Planejador (K), Observações (L) ...]
-      // Para manter compatibilidade com o layout anterior vamos mapear nas colunas apropriadas:
-      // Col B (2) = Descrição (já escrita separadamente)
-      // Col C (3) = Valor Unitário (preenchido separadamente)
-      // Col D (4) = CMM (preenchido separadamente)
-      // Col E (5) = Qtd. Solicitada (preenchido separadamente)
-      // Col F (6) = Valor Total (formula)
-      // Col G (7) = AE / Notes -> blocoAENotes
-      // Col H (8) = Empenho -> txtEmp
-      // Col I (9) = Estoque -> estoqueTotal
-      // Col J (10) = Processos -> blocoProcessos
-      // Col K (11) = Planejador -> txtPlan
-
       outputDados.push([ blocoAENotes, txtEmp, estoqueTotal, blocoProcessos, txtPlan ]); 
       outputObservacoes.push([ mapObservacoesSalvas.get(codAtual) || "" ]);
 
@@ -343,17 +300,13 @@ function executarMutiraoComContexto(tipoOrigem) {
 
     if (outputDados.length > 0) {
       const numLinhas = outputDados.length;
-
       abaMutirao.getRange(2, 2, abaMutirao.getMaxRows() - 1, 11).clearContent();
-
       abaMutirao.getRange(2, 2, numLinhas, 1).setValues(outputDescricoes);
       abaMutirao.getRange(2, 3, numLinhas, 1).setValues(outputPrecos).setNumberFormat("R$ #,##0.00");
       abaMutirao.getRange(2, 4, numLinhas, 1).setValues(outputCmm).setNumberFormat("#,##0.##");
       abaMutirao.getRange(2, 5, numLinhas, 1).setValues(outputQtdSolicitada).setNumberFormat("#,##0");
       abaMutirao.getRange(2, 6, numLinhas, 1).setFormulas(outputFormulasTotal).setNumberFormat("R$ #,##0.00").setFontWeight("bold");
       
-      // Escrevemos o bloco composto em colunas G..K levando os dados do array outputDados
-      // outputDados columns: [G, H, I, J, K] respectively.
       abaMutirao.getRange(2, 7, numLinhas, 5).setValues(outputDados);
       abaMutirao.getRange(2, 7, numLinhas, 5).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
       abaMutirao.getRange(2, 7, numLinhas, 5).setVerticalAlignment("middle");
@@ -376,7 +329,7 @@ function executarMutiraoComContexto(tipoOrigem) {
     }
 
   } catch (e) {
-     ui.alert("Erro ao processar: " + e.message);
+    ui.alert("Erro ao processar: " + e.message);
   }
 }
 
@@ -392,6 +345,7 @@ function _buscarEmpenhosCompilados(setCodigos, ssFonte) {
     if (lastRow < 2) return mapa;
 
     const dados = aba.getRange(2, 1, lastRow - 1, 19).getValues();
+
     dados.forEach(linha => {
       const emp = String(linha[0]).trim();        
       const cod = _norm(linha[5]);                
@@ -415,8 +369,8 @@ function _buscarDadosEntradaEmpenhos(setCodigos) {
     const nomeAbaEntradas = CONFIG.abas.entradaEmpenhos || "EntradaEmpenhos";
     const aba = ssFonte.getSheetByName(nomeAbaEntradas);
     
-    if (!aba) return mapa; 
-    
+    if (!aba) return mapa;      
+
     const lastRow = aba.getLastRow();
     if (lastRow < 2) return mapa;
     
@@ -424,10 +378,10 @@ function _buscarDadosEntradaEmpenhos(setCodigos) {
     
     dados.forEach(linha => {
       const cod = _norm(linha[2]);             
-      const desc = String(linha[3]).trim();   
+      const desc = String(linha[3]).trim();    
       const plan = String(linha[14]).trim();   
       let valor = linha[16];                   
-            
+                   
       if (cod && setCodigos.has(cod)) {
         if (typeof valor === 'string') valor = parseFloat(valor.replace("R$", "").replace(".", "").replace(",", ".").trim());
         else valor = parseFloat(valor) || 0;
@@ -450,13 +404,14 @@ function _buscarDadosEntradaEmpenhos(setCodigos) {
 function enviarEmailComAnexos(listaItens, nomeContexto, corTitulo) {
   const isTeste = CONFIG_EMAILS_MUTIRAO.MODO_TESTE;
   const destinatarios = isTeste ? CONFIG_EMAILS_MUTIRAO.EMAIL_TESTE : CONFIG_EMAILS_MUTIRAO.LISTA_GERAL.join(",");
-  const assunto = `🔥 INFORMATIVO: ${nomeContexto} - Urgências e Prazos (${new Date().toLocaleDateString()})`;
 
+  const assunto = `[INFORMATIVO: ${nomeContexto} - Urgências e Prazos (${new Date().toLocaleDateString()})]`;
+  
   const blocos = {
-      "0": { titulo: "🚨 PRIORIDADE: IMEDIATA", cor: "#CC0000", itens: [] },
-      "1": { titulo: "⚠️ PRIORIDADE: 3 a 5 DIAS", cor: "#E69138", itens: [] },
-      "2": { titulo: "⏳ PRIORIDADE: 7 A 10 DIAS", cor: "#F1C232", itens: [] },
-      "OUTROS": { titulo: "ℹ️ SEM PRIORIDADE DEFINIDA", cor: "#666666", itens: [] }
+      "0": { titulo: "[PRIORIDADE: IMEDIATA]", cor: "#CC0000", itens: [] },
+      "1": { titulo: "[PRIORIDADE: 3 a 5 DIAS]", cor: "#E69138", itens: [] },
+      "2": { titulo: "[PRIORIDADE: 7 A 10 DIAS]", cor: "#F1C232", itens: [] },
+      "OUTROS": { titulo: "[SEM PRIORIDADE DEFINIDA]", cor: "#666666", itens: [] }
   };
 
   listaItens.forEach(item => {
@@ -475,13 +430,13 @@ function enviarEmailComAnexos(listaItens, nomeContexto, corTitulo) {
       <p>Os relatórios completos detalhados encontram-se em anexo.</p><br>`;
 
   let htmlPdf = `<html><head><style>
-       @page { size: landscape; margin: 10mm; }
-        body { font-family: Arial, sans-serif; font-size: 10px; }
-        h2 { background: ${corTitulo}; color: white; padding: 6px; text-align: center; margin-bottom: 10px; border-radius: 4px; }
-        .bloco-titulo { color: white; padding: 5px; margin-top: 20px; border-radius: 3px; font-size: 12px; font-weight: bold; }
-       table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th, td { border: 1px solid #ccc; padding: 4px; vertical-align: top; }
-        th { background: #f2f2f2; }
+       @page { size: landscape; margin: 10mm; } 
+       body { font-family: Arial, sans-serif; font-size: 10px; } 
+       h2 { background: ${corTitulo}; color: white; padding: 6px; text-align: center; margin-bottom: 10px; border-radius: 4px; } 
+       .bloco-titulo { color: white; padding: 5px; margin-top: 20px; border-radius: 3px; font-size: 12px; font-weight: bold; }
+       table { width: 100%; border-collapse: collapse; margin-bottom: 15px; } 
+       th, td { border: 1px solid #ccc; padding: 4px; vertical-align: top; } 
+       th { background: #f2f2f2; }
   </style></head><body>
   <h2>Relatório Detalhado: ${nomeContexto} (${new Date().toLocaleDateString()})</h2>`;
 
@@ -598,7 +553,7 @@ function enviarEmailComAnexos(listaItens, nomeContexto, corTitulo) {
     htmlBody: htmlEmail, 
     attachments: anexos
   });
-
+  
   SpreadsheetApp.getUi().alert(`E-mail com PDF e Excel enviado com sucesso em Cópia Oculta (BCC)!`);
 }
 

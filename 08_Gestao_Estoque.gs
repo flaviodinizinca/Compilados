@@ -1,7 +1,6 @@
 // =================================================================
 // --- BLOCO 08: GESTÃO DE ESTOQUE ---
 // =================================================================
-
 function sincronizarControleEstoque() {
   const planilhaLocal = SpreadsheetApp.getActiveSpreadsheet();
   const interfaceUsuario = SpreadsheetApp.getUi();
@@ -88,8 +87,8 @@ function sincronizarControleEstoque() {
     const abaDados = ssDadosGeral.getSheetByName(nomeAbaDados);
     if (!abaDados) throw new Error(`Aba '${nomeAbaDados}' não encontrada.`);
 
-    // --- Lendo a partir da linha 3 - Nova Estrutura (40 Colunas) ---
-    const dadosSistema = abaDados.getRange(3, 1, abaDados.getLastRow() - 2, 40).getValues();
+    // --- Lendo a partir da linha 3 - Ampliado para 43 Colunas ---
+    const dadosSistema = abaDados.getRange(3, 1, abaDados.getLastRow() - 2, 43).getValues();
 
     const output = [];
     dadosSistema.forEach(r => {
@@ -100,8 +99,8 @@ function sincronizarControleEstoque() {
       const desc = r[2]; // Col C (Descricao)
       const empenhoInfo = mapaEmpenhos.get(cod) || { empenho: "---", fornecedor: "---" };
       
-      // AJUSTE: r[19] e r[26] foram deslocados para r[20] e r[27]
-      const processo = [r[20], r[27]].filter(Boolean).join(" / ");
+      // AJUSTE: r[20] e r[27] foram deslocados para r[22] e r[30]
+      const processo = [r[22], r[30]].filter(Boolean).join(" / ");
       
       const estoque = parseFloat(r[7]) || 0; // Col H (SaldoAtual)
       const cmmSistemaAntigo = parseFloat(r[8]) || 0; // Col I (Cmm12)
@@ -113,7 +112,6 @@ function sincronizarControleEstoque() {
       // Cobertura
       let diasCob = 0;
       let dataEsgotamento = "";
-
       if (cmmNovo > 0) {
         diasCob = Math.floor(estoque / (cmmNovo / 30));
         const dt = new Date(); dt.setDate(dt.getDate() + diasCob);
@@ -139,7 +137,6 @@ function sincronizarControleEstoque() {
       // Sugestão
       let sugestao = 0;
       let prevSugestao = "";
-
       if (cmmNovo > 0) {
         const meta = cmmNovo * 6;
         if (estoque < meta) sugestao = Math.round(meta - estoque);
@@ -151,7 +148,7 @@ function sincronizarControleEstoque() {
       } else {
         prevSugestao = "S/ Consumo";
       }
-
+      
       output.push([
         tipo, cod, desc, empenhoInfo.fornecedor, empenhoInfo.empenho, 
         estoque, cmmNovo, status, diasCob === 9999 ? "-" : diasCob, 
@@ -164,13 +161,12 @@ function sincronizarControleEstoque() {
     // 4. ESCRITA NA PLANILHA
     let aba = planilhaLocal.getSheetByName(CONFIG.abas.estoqueRemoto);
     if (!aba) aba = planilhaLocal.insertSheet(CONFIG.abas.estoqueRemoto);
-
     aba.clear();
     
     const header = [
       "Tipo", "Item", "Descrição", "Fornecedor", "Empenho", 
       "Estoque", "CMM (Real Higienizado)", "Status", "Cobertura (Dias)", 
-      "Data Esgot.", "Processo SEI", "Sugestão (6 Meses)", "Prev. Sugestão",
+      "Data Esgot.", "Processo SEI", "Sugestão (6 Meses)", "Prev. Sugestão", 
       "|", "CMM (Sistema Antigo)", "Diferença"
     ];
     
@@ -203,6 +199,7 @@ function sincronizarControleEstoque() {
 }
 
 function _norm(t) { return t ? String(t).trim().toUpperCase() : ""; }
+
 function _definirTipo(ref, cod) {
   if (ref === "FAR" || /^\d/.test(cod)) return "MEDICAMENTO";
   return "MATERIAL";
