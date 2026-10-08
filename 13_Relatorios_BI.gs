@@ -83,6 +83,38 @@ function gerarRelatorioResiduo10() {
     const abaComp = ss.getSheetByName(CONFIG.destino.nomeAba);
     if (!abaComp) throw new Error("Aba Compilados não encontrada.");
     
+    // Buscar dados de EntradaEmpenhos para valor unitário
+    const idFonteGeral = CONFIG.ids.fonteDadosGeral;
+    if (!idFonteGeral) throw new Error("ID_FONTE_GERAL não configurado.");
+    
+    const ssFonte = SpreadsheetApp.openById(idFonteGeral);
+    const nomeAbaEntradas = CONFIG.abas.entradaEmpenhos || "EntradaEmpenhos";
+    const abaEntradas = ssFonte.getSheetByName(nomeAbaEntradas);
+    
+    if (!abaEntradas) throw new Error(`Aba '${nomeAbaEntradas}' não encontrada na fonte geral.`);
+    
+    // Mapa de valores unitários: chave = "EMPENHO||ITEM", valor = VALOR_UNITÁRIO
+    const mapaValoresUnitarios = new Map();
+    const lastRowEntradas = abaEntradas.getLastRow();
+    
+    if (lastRowEntradas >= 2) {
+      // A (0) = Empenho, C (2) = Item, Q (16) = VALOR_UNITÁRIO
+      const dadosEntradas = abaEntradas.getRange(2, 1, lastRowEntradas - 1, 17).getValues();
+      
+      dadosEntradas.forEach(linha => {
+        const empenho = _normalizarEmpenhoBusca(String(linha[0] || '').trim());
+        const item = String(linha[2] || '').trim();
+        const valorUnitario = parseFloat(linha[16]) || 0;
+        
+        if (empenho && item) {
+          const chave = `${empenho}||${item}`;
+          if (!mapaValoresUnitarios.has(chave)) {
+            mapaValoresUnitarios.set(chave, valorUnitario);
+          }
+        }
+      });
+    }
+    
     let abaRel = ss.getSheetByName("Resíduo 10%");
     if (!abaRel) abaRel = ss.insertSheet("Resíduo 10%");
     abaRel.clear();
@@ -94,6 +126,12 @@ function gerarRelatorioResiduo10() {
     dados.forEach(l => {
       const status = _norm(l[18]);
       if (status === "RESÍDUO 10%") {
+        const empenho = _normalizarEmpenhoBusca(String(l[0] || '').trim());
+        const item = String(l[5] || '').trim();
+        const chave = `${empenho}||${item}`;
+        
+        const valorUnitario = mapaValoresUnitarios.get(chave) || 0;
+        
         dadosFilt.push([
           l[0],  // A: EMPENHO
           l[4],  // B: FORNECEDOR
@@ -104,7 +142,7 @@ function gerarRelatorioResiduo10() {
           (parseFloat(l[15]) - parseFloat(l[16])) || 0, // G: QTD RESIDUAL (10%)
           l[19], // H: PROCESSO
           l[20], // I: MODALIDADE
-          l[3]   // J: VALOR UNITÁRIO
+          valorUnitario // J: VALOR UNITÁRIO (de EntradaEmpenhos)
         ]);
       }
     });
@@ -295,7 +333,34 @@ function gerarRelatorioValidadeAtas() {
   }
 }
 
-// Função auxiliar de normalização (caso não exista)
+// =================================================================
+// --- FUNÇÕES AUXILIARES ---
+// =================================================================
+
 function _norm(t) { 
   return t ? String(t).trim().toUpperCase() : ""; 
+}
+
+function _normalizarEmpenhoBusca(valor) {
+  const texto = String(valor || '').trim();
+  
+  if (!texto) return '';
+
+  const somenteDigitos = texto.replace(/\D/g, '');
+  if (!somenteDigitos) return '';
+  
+  if (somenteDigitos.length === 8) {
+    return somenteDigitos;
+  }
+
+  if (somenteDigitos.length > 8) {
+    const ano = somenteDigitos.slice(0, 4);
+    const numero = somenteDigitos.slice(-4);
+    
+    if (/^\d{4}$/.test(ano) && /^\d{4}$/.test(numero)) {
+      return ano + numero;
+    }
+  }
+
+  return somenteDigitos;
 }
