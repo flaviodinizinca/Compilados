@@ -85,7 +85,6 @@ function gerarRelatorioResiduo10() {
     const abaComp = ss.getSheetByName("Compilados");
     if (!abaComp) throw new Error("Aba Compilados não encontrada.");
     
-    // Buscar dados de EntradaEmpenhos para valor unitário
     const idFonteGeral = CONFIG.ids.fonteDadosGeral;
     if (!idFonteGeral) throw new Error("ID_FONTE_GERAL não configurado.");
     
@@ -95,12 +94,10 @@ function gerarRelatorioResiduo10() {
     
     if (!abaEntradas) throw new Error(`Aba '${nomeAbaEntradas}' não encontrada na fonte geral.`);
     
-    // Mapa de valores unitários: chave = "EMPENHO||ITEM", valor = VALOR_UNITÁRIO
     const mapaValoresUnitarios = new Map();
     const lastRowEntradas = abaEntradas.getLastRow();
     
     if (lastRowEntradas >= 2) {
-      // A (0) = Empenho, C (2) = Item, Q (16) = VALOR_UNITÁRIO
       const dadosEntradas = abaEntradas.getRange(2, 1, lastRowEntradas - 1, 17).getValues();
       
       dadosEntradas.forEach(linha => {
@@ -121,55 +118,41 @@ function gerarRelatorioResiduo10() {
     if (!abaRel) abaRel = ss.insertSheet("Resíduo 10%");
     abaRel.clear();
     
-    // Ler aba Compilados com todas as colunas necessárias
     const lastRowComp = abaComp.getLastRow();
     const dados = abaComp.getRange(2, 1, lastRowComp - 1, 21).getValues();
     const dadosFilt = [];
     
-    // Filtrar itens onde QTD RESIDUAL ≤ 10% do QTD EMPENHO
     dados.forEach(l => {
       const empenho = String(l[0] || '').trim();
       const item = String(l[5] || '').trim();
-      
-      // Colunas corretas:
-      // I (índice 8) = QTD EMPENHO
-      // P (índice 15) = QTD RECEBIDA
-      // Q (índice 16) = QTD RESIDUAL
       
       const qtdEmpenho = parseFloat(l[8]) || 0;
       const qtdRecebida = parseFloat(l[15]) || 0;
       const qtdResidual = parseFloat(l[16]) || 0;
       
-      // Validar se há empenho
       if (!empenho || qtdEmpenho <= 0) return;
       
-      // Calcular percentual do residual
-      const percentualResidual = (qtdResidual / qtdEmpenho) * 100;
+      const percentualResidual = (qtdResidual / qtdEmpenho);
+      if (percentualResidual > 0.10) return;
       
-      // Filtrar: apenas itens onde residual ≤ 10% do empenho
-      if (percentualResidual > 10) return;
-      
-      // Buscar valor unitário em EntradaEmpenhos
       const empenhoNorm = _normalizarEmpenhoBusca(empenho);
       const chave = `${empenhoNorm}||${item}`;
       const valorUnitario = mapaValoresUnitarios.get(chave) || 0;
-      
-      // Calcular valor total = QTD RESIDUAL × VALOR UNITÁRIO
       const valorTotal = qtdResidual * valorUnitario;
       
       dadosFilt.push([
-        empenho,                           // A: EMPENHO
-        l[4],                              // B: FORNECEDOR
-        item,                              // C: ITEM
-        l[6],                              // D: DESCRIÇÃO
-        qtdEmpenho,                        // E: QTD EMPENHO
-        qtdRecebida,                       // F: QTD RECEBIDA
-        qtdResidual,                       // G: QTD RESIDUAL (10%)
-        percentualResidual.toFixed(2),     // H: % RESIDUAL
-        l[19],                             // I: PROCESSO
-        l[20],                             // J: MODALIDADE
-        valorUnitario,                     // K: VALOR UNITÁRIO
-        valorTotal                         // L: VALOR TOTAL (RESIDUAL × VLR UNITÁRIO)
+        empenho,
+        l[4],
+        item,
+        l[6],
+        qtdEmpenho,
+        qtdRecebida,
+        qtdResidual,
+        percentualResidual,
+        l[19],
+        l[20],
+        valorUnitario,
+        valorTotal
       ]);
     });
     
@@ -196,22 +179,16 @@ function gerarRelatorioResiduo10() {
     
     if (dadosFilt.length > 0) {
       abaRel.getRange(2, 1, dadosFilt.length, headerNovo.length).setValues(dadosFilt);
-      
-      // Formatação de valores monetários (colunas K e L)
-      abaRel.getRange(2, 11, dadosFilt.length, 2).setNumberFormat('R$ #,##0.00');
-      
-      // Formatação de quantidades (colunas E, F, G)
       abaRel.getRange(2, 5, dadosFilt.length, 3).setNumberFormat('#,##0');
-      
-      // Formatação de percentual (coluna H)
       abaRel.getRange(2, 8, dadosFilt.length, 1).setNumberFormat('0.00%');
-      
+      abaRel.getRange(2, 11, dadosFilt.length, 2).setNumberFormat('R$ #,##0.00');
       abaRel.setFrozenRows(1);
       abaRel.autoResizeColumns(1, headerNovo.length);
       
+      const totalGeral = dadosFilt.reduce((sum, row) => sum + (parseFloat(row[11]) || 0), 0);
       ui.alert(
         "Relatório Gerado", 
-        `${dadosFilt.length} itens com saldo ≤ 10% encontrados.\nValor total em resíduos: R$ ${dadosFilt.reduce((sum, row) => sum + parseFloat(row[11] || 0), 0).toLocaleString('pt-BR')}`, 
+        `${dadosFilt.length} itens com saldo ≤ 10% encontrados.\nValor total em resíduos: ${Utilities.formatString('R$ %,.2f', totalGeral)}`,
         ui.ButtonSet.OK
       );
     } else {
@@ -258,16 +235,11 @@ function gerarRelatorioValidadeAtas() {
     const hoje = new Date();
     
     dados.forEach(l => {
-      // Coluna W (22) = Processo Ata/Direta
-      // Coluna AA (26) = Data Vigência Ata (ou similar)
-      // Coluna X (23) = Modalidade Homologado
-      
       const procAta = l[22] ? String(l[22]).trim() : "";
-      let dataVigencia = l[25]; // Ajustar conforme sua estrutura
+      let dataVigencia = l[25];
       
-      if (!procAta) return; // Pula se não houver processo de ata
+      if (!procAta) return;
       
-      // Tenta converter data
       let dataObj = null;
       if (dataVigencia) {
         if (Object.prototype.toString.call(dataVigencia) === '[object Date]') {
@@ -277,10 +249,8 @@ function gerarRelatorioValidadeAtas() {
         }
       }
       
-      // Calcula dias até vencimento
       let diasRestantes = "";
       let status = "Ativa";
-      let cor = "#d4edda";
       
       if (dataObj && !isNaN(dataObj)) {
         const diffTime = dataObj - hoje;
@@ -289,24 +259,21 @@ function gerarRelatorioValidadeAtas() {
         
         if (diasAteVencimento < 0) {
           status = "🔴 VENCIDA";
-          cor = "#f8d7da";
         } else if (diasAteVencimento < 30) {
           status = "⚠️ VENCE EM BREVE";
-          cor = "#fff3cd";
         } else if (diasAteVencimento < 90) {
           status = "🟡 ATENÇÃO";
-          cor = "#fff3cd";
         }
       }
       
       dadosFilt.push([
-        l[1] ? String(l[1]).trim() : "",  // Item
-        l[2] ? String(l[2]).trim() : "",  // Descrição
-        procAta,                           // Processo Ata
-        l[23] ? String(l[23]).trim() : "", // Modalidade
-        dataVigencia ? dataVigencia : "",  // Data de Vigência
-        diasRestantes,                     // Dias Restantes
-        status                             // Status
+        l[1] ? String(l[1]).trim() : "",
+        l[2] ? String(l[2]).trim() : "",
+        procAta,
+        l[23] ? String(l[23]).trim() : "",
+        dataVigencia ? dataVigencia : "",
+        diasRestantes,
+        status
       ]);
     });
     
@@ -329,24 +296,7 @@ function gerarRelatorioValidadeAtas() {
     
     if (dadosFilt.length > 0) {
       abaRel.getRange(2, 1, dadosFilt.length, headerNovo.length).setValues(dadosFilt);
-      
-      // Formatação de data
       abaRel.getRange(2, 5, dadosFilt.length, 1).setNumberFormat('dd/mm/yyyy');
-      
-      // Cor condicional no status
-      for (let i = 2; i <= dadosFilt.length + 1; i++) {
-        const statusCell = abaRel.getRange(i, 7);
-        const statusValue = String(statusCell.getValue());
-        
-        if (statusValue.includes("VENCIDA")) {
-          statusCell.setBackground("#f8d7da");
-        } else if (statusValue.includes("BREVE") || statusValue.includes("ATENÇÃO")) {
-          statusCell.setBackground("#fff3cd");
-        } else {
-          statusCell.setBackground("#d4edda");
-        }
-      }
-      
       abaRel.setFrozenRows(1);
       abaRel.autoResizeColumns(1, headerNovo.length);
       
