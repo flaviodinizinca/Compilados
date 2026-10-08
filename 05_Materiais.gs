@@ -57,6 +57,10 @@ function processarMateriaisRemoto(dadosGlobais) {
     dadosGlobais.forEach(r => {
       const emp = _cleanStr(r[0]);
       const item = _cleanStr(_norm(r[2]));
+      
+      // --- NOVO FILTRO: IGNORAR ITENS COMEÇADOS COM C, A50, D, A70 ---
+      if (/^(C|A50|D|A70)/i.test(item)) return;
+
       const key = `${emp}-${item}`;
 
       if (emp && item) {
@@ -98,12 +102,23 @@ function processarMateriaisRemoto(dadosGlobais) {
     const output = [];
     const lastRowEmp = wsEmpenhos.getLastRow();
 
+    // --- CÁLCULO DE LIMITE DE ANO PARA FILTRO ---
+    const anoAtual = new Date().getFullYear();
+    const anoMinimo = anoAtual - 1;
+
     if (lastRowEmp >= 2) {
       wsEmpenhos.getRange(2, 1, lastRowEmp - 1, 6).getValues().forEach(r => {
         const emp = _cleanStr(r[3]);
         const cod = _cleanStr(_norm(r[4]));
 
         if (!emp || !cod) return;
+
+        // --- NOVO FILTRO: IGNORAR ITENS COMEÇADOS COM C, A50, D, A70 ---
+        if (/^(C|A50|D|A70)/i.test(cod)) return;
+
+        // --- APLICAÇÃO DO FILTRO DE ANO ---
+        const anoEmp = _extrairAnoEmpenho(emp);
+        if (anoEmp === null || anoEmp < anoMinimo) return;
 
         const key = `${emp}-${cod}`;
         
@@ -143,7 +158,10 @@ function processarMateriaisRemoto(dadosGlobais) {
 
         const saldoFisico = qE - qS_Fisico;
 
-        status = _calcularStatusUnificado(qE, qS_Oficial, saldoFisico, isProvisorio, status);
+        // Se ainda não for Solicitar Associação, calcula normalmente.
+        if (status !== "Solicitar Associação") {
+           status = _calcularStatusUnificado(qE, qS_Oficial, saldoFisico, isProvisorio, status);
+        }
 
         if (saldoAEmpenhar === 0 && qE > 0) {
           status = "Concluído";
@@ -161,6 +179,8 @@ function processarMateriaisRemoto(dadosGlobais) {
            obsAtraso = 'Saldo Cancelado';
         } else if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
           obsAtraso = 'Entregue';
+        } else if (status === 'Solicitar Associação') {
+          obsAtraso = '';
         } else if (status.includes('Pendente') && dVenc) {
           const diff = new Date().setHours(0, 0, 0, 0) - dVenc.getTime();
           obsAtraso = diff > 0 ? _diasParaTexto(Math.floor(diff / 86400000)) : "No prazo";

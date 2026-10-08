@@ -72,11 +72,20 @@ function processarMedicamentosRemoto(dadosGlobais) {
     });
 
     const output = [];
+    
+    // --- CÁLCULO DE LIMITE DE ANO PARA FILTRO ---
+    const anoAtual = new Date().getFullYear();
+    const anoMinimo = anoAtual - 1;
+
     wsEmp.getRange(2, 1, wsEmp.getLastRow() - 1, 6).getValues().forEach(r => {
       const emp = String(r[3]).trim();
       const cod = _norm(r[4]);
 
       if (!emp || !cod || !/^\d/.test(cod)) return;
+
+      // --- APLICAÇÃO DO FILTRO DE ANO ---
+      const anoEmp = _extrairAnoEmpenho(emp);
+      if (anoEmp === null || anoEmp < anoMinimo) return;
 
       const k = `${emp}-${cod}`;
       const ent = entMap.get(k) || { qE: 0, qS: 0, saldoAEmpenhar: 0 };
@@ -101,7 +110,10 @@ function processarMedicamentosRemoto(dadosGlobais) {
 
       const saldoFisico = qE - qS_Fisico;
 
-      status = _calcularStatusUnificado(qE, qS_Oficial, saldoFisico, isProvisorio, status);
+      // Se ainda não for Solicitar Associação, calcula normalmente.
+      if (status !== "Solicitar Associação") {
+        status = _calcularStatusUnificado(qE, qS_Oficial, saldoFisico, isProvisorio, status);
+      }
 
       // REGRA AJUSTADA:
       // Quando houver recebimento provisório E também condição de concluído,
@@ -122,6 +134,8 @@ function processarMedicamentosRemoto(dadosGlobais) {
         atraso = 'Saldo Cancelado';
       } else if (status === 'Concluído' || (saldoAEmpenhar === 0 && qE > 0)) {
         atraso = 'Entregue';
+      } else if (status === 'Solicitar Associação') {
+        atraso = '';
       } else if (status.includes('Pendente') && dVen) {
         const diff = new Date().setHours(0, 0, 0, 0) - dVen.getTime();
         atraso = diff > 0 ? _diasParaTexto(Math.floor(diff / 86400000)) : "No prazo";

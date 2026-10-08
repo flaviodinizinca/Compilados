@@ -178,16 +178,25 @@ function compilarDados(dadosGlobais) {
           linha[16] = vQ;
 
           var statusOrig = linha[18] ? linha[18].toString().trim() : '';
-          let statusFinal = _calcularStatusUnificado(vI, qS_Real_Oficial, vQ, isProvisorio, statusOrig);
+          let statusFinal = statusOrig;
+          
+          // Preserva "Solicitar Associação" se vI for zero
+          if (vI === 0) {
+              statusFinal = "Solicitar Associação";
+          } else {
+              statusFinal = _calcularStatusUnificado(vI, qS_Real_Oficial, vQ, isProvisorio, statusOrig);
+          }
 
           if (vQ === 0 && (statusFinal === "Recebido a Maior" || statusFinal === "Pendente")) {
               statusFinal = isProvisorio ? "Recebimento Provisório" : "Concluído";
           }
           linha[18] = statusFinal;
           
-          // ---> MODIFICAÇÃO AQUI: Força a observação se o status for "Saldo Cancelado" <---
+          // ---> MODIFICAÇÃO AQUI: Força a observação se o status for "Saldo Cancelado" ou "Solicitar Associação" <---
           if (statusFinal === 'Saldo Cancelado') {
               linha[17] = 'Saldo Cancelado';
+          } else if (statusFinal === 'Solicitar Associação') {
+              linha[17] = '';
           }
       }
 
