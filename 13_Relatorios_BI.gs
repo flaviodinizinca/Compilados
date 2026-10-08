@@ -70,3 +70,232 @@ function gerarRelatorioPerformanceFornecedores() {
     ui.alert("Erro BI Fornecedores: " + e.message);
   }
 }
+
+// =================================================================
+// --- RELATÓRIO: VALOR RESÍDUO 10% ---
+// =================================================================
+
+function gerarRelatorioResiduo10() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    const abaComp = ss.getSheetByName(CONFIG.destino.nomeAba);
+    if (!abaComp) throw new Error("Aba Compilados não encontrada.");
+    
+    let abaRel = ss.getSheetByName("Resíduo 10%");
+    if (!abaRel) abaRel = ss.insertSheet("Resíduo 10%");
+    abaRel.clear();
+    
+    const dados = abaComp.getRange(2, 1, abaComp.getLastRow() - 1, 21).getValues();
+    const dadosFilt = [];
+    
+    // Filtrar apenas itens com status "RESÍDUO 10%"
+    dados.forEach(l => {
+      const status = _norm(l[18]);
+      if (status === "RESÍDUO 10%") {
+        dadosFilt.push([
+          l[0],  // A: EMPENHO
+          l[4],  // B: FORNECEDOR
+          l[5],  // C: ITEM
+          l[6],  // D: DESCRIÇÃO
+          l[15], // E: QTD EMPENHO
+          l[16], // F: QTD RECEBIDA
+          (parseFloat(l[15]) - parseFloat(l[16])) || 0, // G: QTD RESIDUAL (10%)
+          l[19], // H: PROCESSO
+          l[20], // I: MODALIDADE
+          l[3]   // J: VALOR UNITÁRIO
+        ]);
+      }
+    });
+    
+    const headerNovo = [
+      "EMPENHO", 
+      "FORNECEDOR", 
+      "ITEM", 
+      "DESCRIÇÃO", 
+      "QTD EMPENHO", 
+      "QTD RECEBIDA", 
+      "QTD RESIDUAL (10%)", 
+      "PROCESSO", 
+      "MODALIDADE",
+      "VALOR UNITÁRIO"
+    ];
+    
+    abaRel.getRange(1, 1, 1, headerNovo.length)
+      .setValues([headerNovo])
+      .setFontWeight('bold')
+      .setBackground("#cfe2f3")
+      .setHorizontalAlignment('center');
+    
+    if (dadosFilt.length > 0) {
+      abaRel.getRange(2, 1, dadosFilt.length, headerNovo.length).setValues(dadosFilt);
+      
+      // Formatação de valores monetários
+      abaRel.getRange(2, 10, dadosFilt.length, 1).setNumberFormat('R$ #,##0.00');
+      
+      // Formatação de quantidades
+      abaRel.getRange(2, 5, dadosFilt.length, 3).setNumberFormat('#,##0');
+      
+      abaRel.setFrozenRows(1);
+      abaRel.autoResizeColumns(1, headerNovo.length);
+      
+      ui.alert(
+        "Relatório Gerado", 
+        `${dadosFilt.length} itens com RESÍDUO 10% encontrados.`, 
+        ui.ButtonSet.OK
+      );
+    } else {
+      ui.alert("Info", "Nenhum item com RESÍDUO 10% encontrado.", ui.ButtonSet.OK);
+    }
+    
+  } catch (e) { 
+    ui.alert("Erro", e.message, ui.ButtonSet.OK); 
+  }
+}
+
+// =================================================================
+// --- RELATÓRIO: VALIDADE DE ATAS ---
+// =================================================================
+
+function gerarRelatorioValidadeAtas() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    const idFonteGeral = CONFIG.ids.fonteDadosGeral;
+    if (!idFonteGeral) throw new Error("ID_FONTE_GERAL não configurado.");
+    
+    const ssFonte = SpreadsheetApp.openById(idFonteGeral);
+    const nomeAbaDados = CONFIG.abas.dadosEstoque || "DadosEstoque";
+    const abaDados = ssFonte.getSheetByName(nomeAbaDados);
+    
+    if (!abaDados) throw new Error(`Aba '${nomeAbaDados}' não encontrada na fonte geral.`);
+    
+    let abaRel = ss.getSheetByName("Validade Atas");
+    if (!abaRel) abaRel = ss.insertSheet("Validade Atas");
+    abaRel.clear();
+    
+    const linhaInicialDados = 3;
+    const lastRowDados = abaDados.getLastRow();
+    
+    if (lastRowDados < linhaInicialDados) {
+      ui.alert("Info", "Nenhum dado encontrado na fonte de dados.", ui.ButtonSet.OK);
+      return;
+    }
+    
+    const dados = abaDados.getRange(linhaInicialDados, 1, lastRowDados - (linhaInicialDados - 1), 43).getValues();
+    const dadosFilt = [];
+    const hoje = new Date();
+    
+    dados.forEach(l => {
+      // Coluna W (22) = Processo Ata/Direta
+      // Coluna AA (26) = Data Vigência Ata (ou similar)
+      // Coluna X (23) = Modalidade Homologado
+      
+      const procAta = l[22] ? String(l[22]).trim() : "";
+      let dataVigencia = l[25]; // Ajustar conforme sua estrutura
+      
+      if (!procAta) return; // Pula se não houver processo de ata
+      
+      // Tenta converter data
+      let dataObj = null;
+      if (dataVigencia) {
+        if (Object.prototype.toString.call(dataVigencia) === '[object Date]') {
+          dataObj = dataVigencia;
+        } else if (typeof dataVigencia === 'string') {
+          dataObj = new Date(dataVigencia);
+        }
+      }
+      
+      // Calcula dias até vencimento
+      let diasRestantes = "";
+      let status = "Ativa";
+      let cor = "#d4edda";
+      
+      if (dataObj && !isNaN(dataObj)) {
+        const diffTime = dataObj - hoje;
+        const diasAteVencimento = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        diasRestantes = diasAteVencimento;
+        
+        if (diasAteVencimento < 0) {
+          status = "🔴 VENCIDA";
+          cor = "#f8d7da";
+        } else if (diasAteVencimento < 30) {
+          status = "⚠️ VENCE EM BREVE";
+          cor = "#fff3cd";
+        } else if (diasAteVencimento < 90) {
+          status = "🟡 ATENÇÃO";
+          cor = "#fff3cd";
+        }
+      }
+      
+      dadosFilt.push([
+        l[1] ? String(l[1]).trim() : "",  // Item
+        l[2] ? String(l[2]).trim() : "",  // Descrição
+        procAta,                           // Processo Ata
+        l[23] ? String(l[23]).trim() : "", // Modalidade
+        dataVigencia ? dataVigencia : "",  // Data de Vigência
+        diasRestantes,                     // Dias Restantes
+        status                             // Status
+      ]);
+    });
+    
+    const headerNovo = [
+      "ITEM",
+      "DESCRIÇÃO",
+      "PROCESSO ATA/DIRETA",
+      "MODALIDADE",
+      "DATA DE VIGÊNCIA",
+      "DIAS RESTANTES",
+      "STATUS"
+    ];
+    
+    abaRel.getRange(1, 1, 1, headerNovo.length)
+      .setValues([headerNovo])
+      .setFontWeight('bold')
+      .setBackground("#1f4e78")
+      .setFontColor("white")
+      .setHorizontalAlignment('center');
+    
+    if (dadosFilt.length > 0) {
+      abaRel.getRange(2, 1, dadosFilt.length, headerNovo.length).setValues(dadosFilt);
+      
+      // Formatação de data
+      abaRel.getRange(2, 5, dadosFilt.length, 1).setNumberFormat('dd/mm/yyyy');
+      
+      // Cor condicional no status
+      for (let i = 2; i <= dadosFilt.length + 1; i++) {
+        const statusCell = abaRel.getRange(i, 7);
+        const statusValue = String(statusCell.getValue());
+        
+        if (statusValue.includes("VENCIDA")) {
+          statusCell.setBackground("#f8d7da");
+        } else if (statusValue.includes("BREVE") || statusValue.includes("ATENÇÃO")) {
+          statusCell.setBackground("#fff3cd");
+        } else {
+          statusCell.setBackground("#d4edda");
+        }
+      }
+      
+      abaRel.setFrozenRows(1);
+      abaRel.autoResizeColumns(1, headerNovo.length);
+      
+      ui.alert(
+        "Relatório Gerado",
+        `${dadosFilt.length} atas encontradas. Verifique status de vigência.`,
+        ui.ButtonSet.OK
+      );
+    } else {
+      ui.alert("Info", "Nenhuma ata encontrada.", ui.ButtonSet.OK);
+    }
+    
+  } catch (e) {
+    ui.alert("Erro", e.message, ui.ButtonSet.OK);
+  }
+}
+
+// Função auxiliar de normalização (caso não exista)
+function _norm(t) { 
+  return t ? String(t).trim().toUpperCase() : ""; 
+}
