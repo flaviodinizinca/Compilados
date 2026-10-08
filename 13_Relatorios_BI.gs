@@ -73,6 +73,8 @@ function gerarRelatorioPerformanceFornecedores() {
 
 // =================================================================
 // --- RELATÓRIO: VALOR RESÍDUO 10% ---
+// CORRIGIDO: Colunas I (QTD EMPENHO), P (QTD RECEBIDA), Q (QTD RESIDUAL)
+// Filtra itens onde RESIDUAL ≤ 10% do Empenho
 // =================================================================
 
 function gerarRelatorioResiduo10() {
@@ -80,7 +82,7 @@ function gerarRelatorioResiduo10() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   try {
-    const abaComp = ss.getSheetByName(CONFIG.destino.nomeAba);
+    const abaComp = ss.getSheetByName("Compilados");
     if (!abaComp) throw new Error("Aba Compilados não encontrada.");
     
     // Buscar dados de EntradaEmpenhos para valor unitário
@@ -119,32 +121,56 @@ function gerarRelatorioResiduo10() {
     if (!abaRel) abaRel = ss.insertSheet("Resíduo 10%");
     abaRel.clear();
     
-    const dados = abaComp.getRange(2, 1, abaComp.getLastRow() - 1, 21).getValues();
+    // Ler aba Compilados com todas as colunas necessárias
+    const lastRowComp = abaComp.getLastRow();
+    const dados = abaComp.getRange(2, 1, lastRowComp - 1, 21).getValues();
     const dadosFilt = [];
     
-    // Filtrar apenas itens com status "RESÍDUO 10%"
+    // Filtrar itens onde QTD RESIDUAL ≤ 10% do QTD EMPENHO
     dados.forEach(l => {
-      const status = _norm(l[18]);
-      if (status === "RESÍDUO 10%") {
-        const empenho = _normalizarEmpenhoBusca(String(l[0] || '').trim());
-        const item = String(l[5] || '').trim();
-        const chave = `${empenho}||${item}`;
-        
-        const valorUnitario = mapaValoresUnitarios.get(chave) || 0;
-        
-        dadosFilt.push([
-          l[0],  // A: EMPENHO
-          l[4],  // B: FORNECEDOR
-          l[5],  // C: ITEM
-          l[6],  // D: DESCRIÇÃO
-          l[15], // E: QTD EMPENHO
-          l[16], // F: QTD RECEBIDA
-          (parseFloat(l[15]) - parseFloat(l[16])) || 0, // G: QTD RESIDUAL (10%)
-          l[19], // H: PROCESSO
-          l[20], // I: MODALIDADE
-          valorUnitario // J: VALOR UNITÁRIO (de EntradaEmpenhos)
-        ]);
-      }
+      const empenho = String(l[0] || '').trim();
+      const item = String(l[5] || '').trim();
+      
+      // Colunas corretas:
+      // I (índice 8) = QTD EMPENHO
+      // P (índice 15) = QTD RECEBIDA
+      // Q (índice 16) = QTD RESIDUAL
+      
+      const qtdEmpenho = parseFloat(l[8]) || 0;
+      const qtdRecebida = parseFloat(l[15]) || 0;
+      const qtdResidual = parseFloat(l[16]) || 0;
+      
+      // Validar se há empenho
+      if (!empenho || qtdEmpenho <= 0) return;
+      
+      // Calcular percentual do residual
+      const percentualResidual = (qtdResidual / qtdEmpenho) * 100;
+      
+      // Filtrar: apenas itens onde residual ≤ 10% do empenho
+      if (percentualResidual > 10) return;
+      
+      // Buscar valor unitário em EntradaEmpenhos
+      const empenhoNorm = _normalizarEmpenhoBusca(empenho);
+      const chave = `${empenhoNorm}||${item}`;
+      const valorUnitario = mapaValoresUnitarios.get(chave) || 0;
+      
+      // Calcular valor total = QTD RESIDUAL × VALOR UNITÁRIO
+      const valorTotal = qtdResidual * valorUnitario;
+      
+      dadosFilt.push([
+        empenho,                           // A: EMPENHO
+        l[4],                              // B: FORNECEDOR
+        item,                              // C: ITEM
+        l[6],                              // D: DESCRIÇÃO
+        qtdEmpenho,                        // E: QTD EMPENHO
+        qtdRecebida,                       // F: QTD RECEBIDA
+        qtdResidual,                       // G: QTD RESIDUAL (10%)
+        percentualResidual.toFixed(2),     // H: % RESIDUAL
+        l[19],                             // I: PROCESSO
+        l[20],                             // J: MODALIDADE
+        valorUnitario,                     // K: VALOR UNITÁRIO
+        valorTotal                         // L: VALOR TOTAL (RESIDUAL × VLR UNITÁRIO)
+      ]);
     });
     
     const headerNovo = [
@@ -154,10 +180,12 @@ function gerarRelatorioResiduo10() {
       "DESCRIÇÃO", 
       "QTD EMPENHO", 
       "QTD RECEBIDA", 
-      "QTD RESIDUAL (10%)", 
+      "QTD RESIDUAL", 
+      "% RESIDUAL",
       "PROCESSO", 
       "MODALIDADE",
-      "VALOR UNITÁRIO"
+      "VALOR UNITÁRIO",
+      "VALOR TOTAL"
     ];
     
     abaRel.getRange(1, 1, 1, headerNovo.length)
@@ -169,22 +197,25 @@ function gerarRelatorioResiduo10() {
     if (dadosFilt.length > 0) {
       abaRel.getRange(2, 1, dadosFilt.length, headerNovo.length).setValues(dadosFilt);
       
-      // Formatação de valores monetários
-      abaRel.getRange(2, 10, dadosFilt.length, 1).setNumberFormat('R$ #,##0.00');
+      // Formatação de valores monetários (colunas K e L)
+      abaRel.getRange(2, 11, dadosFilt.length, 2).setNumberFormat('R$ #,##0.00');
       
-      // Formatação de quantidades
+      // Formatação de quantidades (colunas E, F, G)
       abaRel.getRange(2, 5, dadosFilt.length, 3).setNumberFormat('#,##0');
+      
+      // Formatação de percentual (coluna H)
+      abaRel.getRange(2, 8, dadosFilt.length, 1).setNumberFormat('0.00%');
       
       abaRel.setFrozenRows(1);
       abaRel.autoResizeColumns(1, headerNovo.length);
       
       ui.alert(
         "Relatório Gerado", 
-        `${dadosFilt.length} itens com RESÍDUO 10% encontrados.`, 
+        `${dadosFilt.length} itens com saldo ≤ 10% encontrados.\nValor total em resíduos: R$ ${dadosFilt.reduce((sum, row) => sum + parseFloat(row[11] || 0), 0).toLocaleString('pt-BR')}`, 
         ui.ButtonSet.OK
       );
     } else {
-      ui.alert("Info", "Nenhum item com RESÍDUO 10% encontrado.", ui.ButtonSet.OK);
+      ui.alert("Info", "Nenhum item com saldo residual ≤ 10% encontrado.", ui.ButtonSet.OK);
     }
     
   } catch (e) { 
